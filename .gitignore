@@ -1,0 +1,22 @@
+# Python build / install artifacts
+*.egg
+*.egg-info/
+dist/
+build/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Generated files
+*.png
+*.jpg
+*.pdf
