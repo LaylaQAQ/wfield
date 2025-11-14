@@ -474,7 +474,7 @@ def atlas_from_landmarks_file(landmarks_file=None,
     Joao Couto - wfield 2020
     '''
     lmarks = load_allen_landmarks(landmarks_file)
-    ccf_regions,proj,brain_outline = allen_load_reference('dorsal_cortex')
+    ccf_regions,proj,brain_outline = allen_load_reference(reference)
     # transform the regions into the image
     if not 'transform' in lmarks.keys():
         lmarks['transform'] = None

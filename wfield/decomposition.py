@@ -75,7 +75,7 @@ def approximate_svd(dat, frames_average,
                                     shape=dims)
         avg = get_trial_baseline(idx[i],frames_average,onsets)
         if divide_by_average:
-            binned[i] = np.mean((blk-(avg + np.float32(1e-10)))
+            binned[i] = np.mean((blk-(avg + np.float32(1e-10)))         ##############  ΔF/F
                                 / (avg + np.float32(1e-10)), axis=0)
         else:
             binned[i] = np.mean(blk-(avg + np.float32(1e-10)), axis=0)
@@ -86,7 +86,7 @@ def approximate_svd(dat, frames_average,
 
     binned = binned.reshape((-1,np.multiply(*dims[-2:])))
 
-    # Get U from the single value decomposition 
+    # Get U from the single value decomposition
     cov = np.dot(binned,binned.T)/binned.shape[1]
     cov = cov.astype('float32')
 

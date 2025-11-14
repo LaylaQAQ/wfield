@@ -57,6 +57,8 @@ pg.setConfigOption('foreground', 'k')
 pg.setConfigOptions(imageAxisOrder='row-major')
 axiscolor = 'k'
 
+import traceback
+
 class AllenMatchTable(QWidget):
     def __init__(self, landmarks_file = None,
                  reference = 'dorsal_cortex',
@@ -68,6 +70,7 @@ class AllenMatchTable(QWidget):
         self.landmarks_file = landmarks_file
         if not os.path.isfile(landmarks_file):
             landmarks_file = None
+        
         lmarks = load_allen_landmarks(landmarks_file,reference = reference)
         self.parent  = parent
         self.M = None
@@ -129,7 +132,7 @@ class AllenMatchTable(QWidget):
             except Exception as e:
                 print(e)
                 print('Resolution needs to be a float.')
-        self.wbregma.textChanged.connect(ubregma)
+        self.wres.textChanged.connect(ures)
         # save transform
         if save_and_close is None:
             self.wsave = QPushButton('Save points')
@@ -399,13 +402,71 @@ class RawDisplayWidget(ImageWidget):
                     ny = [p['pos'][1] for p in self.points.points]
                     self.allenwidget.landmarks_im.nx = nx
                     self.allenwidget.landmarks_im.ny = ny
+
+########################################
+                    # 1. 获取三个点
+                    im = self.allenwidget.landmarks_im
+                    ob_left = im[im['name'] == 'OB_left']
+                    ob_right = im[im['name'] == 'OB_right']
+                    ob_center = im[im['name'] == 'OB_center']
+                    rsp_base = im[im['name'] == 'RSP_base']
+                    # print(im)
+                    # 2. Allen图谱中这三点的实际坐标（单位mm），需要查json文件
+                    lmark = self.allenwidget.landmarks
+                    def get_xy(lmark, name):
+                        x = float(lmark[lmark['name'] == name]['x'].values[0])
+                        y = float(lmark[lmark['name'] == name]['y'].values[0])
+                        return np.array([x, y])
+                    allen_ob_left_mm = get_xy(lmark, 'OB_left')
+                    allen_ob_right_mm = get_xy(lmark, 'OB_right')
+                    allen_rsp_base_mm = get_xy(lmark, 'RSP_base')
+                    allen_ob_center_mm = get_xy(lmark, 'OB_center')
+                    # print(np.array(self.allenwidget.bregma_offset))
+                    allen_bregma_mm = np.array(self.allenwidget.bregma_offset)
+
+                    # # 3. 计算分辨率
+                    allen_dist_mm = np.linalg.norm(allen_ob_left_mm - allen_ob_right_mm)
+                    ob_left_x = float(ob_left.nx.values[0])
+                    ob_left_y = float(ob_left.ny.values[0])
+                    ob_right_x = float(ob_right.nx.values[0])
+                    ob_right_y = float(ob_right.ny.values[0])
+                    img_dist = np.sqrt((ob_left_x - ob_right_x)**2 + (ob_left_y - ob_right_y)**2)
+                    resolution = round(allen_dist_mm / img_dist,5)
+                    print(resolution)
+
+#                     # 4. 计算bregma_offset
+                    ob_center_x = float(ob_center.nx.values[0])
+                    ob_center_y = float(ob_center.ny.values[0])
+                    rsp_base_x = float(rsp_base.nx.values[0])
+                    rsp_base_y = float(rsp_base.ny.values[0])
+                    allen_bregma_x = allen_bregma_mm[0]
+                    allen_bregma_y = allen_bregma_mm[1]
+                    allen_rsp_base_x = allen_rsp_base_mm[0]
+                    allen_rsp_base_y = allen_rsp_base_mm[1]
+                    # bregma_offset = [ob_center_x - delta_mm[0]/resolution, ob_center_y - delta_mm[1]/resolution]
+                    # ob_bregma_x = (allen_bregma_y-allen_ob_center_mm[1])/(allen_rsp_base_y-allen_ob_center_mm[1])*(rsp_base_x-ob_center_x)+ob_center_x
+                    # ob_bregma_y = (allen_bregma_y-allen_ob_center_mm[1])/(allen_rsp_base_y-allen_ob_center_mm[1])*(rsp_base_y-ob_center_y)+ob_center_y
+                    ob_bregma_x = int((348/671)*(rsp_base_x-ob_center_x)+ob_center_x)
+                    ob_bregma_y = int((348/671)*(rsp_base_y-ob_center_y)+ob_center_y)
+                    bregma_offset = [ob_bregma_x, ob_bregma_y]
+                    print(bregma_offset)
+
+                    # 5. 更新
+                    self.allenwidget.resolution = resolution
+                    self.allenwidget.bregma_offset = bregma_offset
+                    self.allenwidget.wres.setText(str(resolution))
+                    self.allenwidget.wbregma.setText('{0},{1}'.format(*bregma_offset))
+# ################################
+  
                     for i,(x,y) in enumerate(zip(nx,ny)):
                         self.allenwidget.table.item(i,4).setText(str(x))
                         self.allenwidget.table.item(i,5).setText(str(y))
                     try:
                         self.allenwidget.usave()
                     except Exception as e:
+                        print('There was an error updating the points.')
                         print(e)
+                        traceback.print_exc()
                     if self.wallen.isChecked():
                         self.allenplot.update()
                     else:
@@ -808,7 +869,8 @@ class RawViewer(QMainWindow):
             self.folder = os.path.abspath(os.path.curdir)
         self.referencename = reference
         landmarks_file = pjoin(self.folder,reference+'_landmarks.json')
-        
+        print(landmarks_file)
+
         self.trial_onsets = trial_onsets
         self.trial_mask = np.ones((self.raw.shape[0]),dtype=bool)
         if not self.trial_onsets is None:
